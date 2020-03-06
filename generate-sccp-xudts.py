@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python3
 
 '''
 MIT License
@@ -24,7 +24,7 @@ SOFTWARE.
 '''
 
 from binascii import hexlify, unhexlify
-from cStringIO import StringIO
+from io import BytesIO
 from collections import namedtuple
 import sys
 from scapy.all import *
@@ -133,7 +133,7 @@ def fragment_sccp(called, calling,
 
   for i in range(len(chunks)):
     chunk = chunks[i]
-    f = StringIO()
+    f = BytesIO()
     f.write(pack('!BBBBBBB',
       0x11, # XUDT
       0x01, # handling / class
@@ -148,13 +148,13 @@ def fragment_sccp(called, calling,
     else: first_segment = 0
     remaining = len(chunks)-1-i
 
-    segmentation = pack('!B', ((first_segment<<7) + (1<<6) + remaining)) + '\xfa\xca\xde'
+    segmentation = pack('!B', ((first_segment<<7) + (1<<6) + remaining)) + b'\xfa\xca\xde'
 
     f.write(pack('!B', len(called)) + called)
     f.write(pack('!B', len(calling)) + calling)
     f.write(pack('!B', len(chunk)) + chunk)
     f.write(pack('!BB', 0x10, len(segmentation)) + segmentation)
-    f.write('\x00')
+    f.write(b'\x00')
 
     yield f.getvalue()
 
@@ -251,7 +251,7 @@ def decode_m3ua(f):
 
 
 def encode_m3ua(m3ua, ss7, sccp):
-  f = StringIO()
+  f = BytesIO()
 
   f.write(pack('!BBBBIHH', m3ua.version, 0, m3ua.klass, m3ua.type, len(sccp)+16+8,
     0x210, len(sccp)+16))
