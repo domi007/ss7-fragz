@@ -200,12 +200,13 @@ hexdump(reassembled)
 hexdump(decode(chunks[2]).mandatory[2])
 '''
 
-M3UA = namedtuple('M3UA', 'version klass type')
+M3UA = namedtuple('M3UA', 'version klass type tags')
 SS7 = namedtuple('SS7', 'opc dpc si ni mp sls')
 
 class UnhandledVariant(Exception): pass
 
 def decode_m3ua(f):
+  tags = []
   version = pop_u8(f)
   if version != 1: raise UnhandledVariant(version)
   reserved = pop_u8(f)
@@ -227,7 +228,8 @@ def decode_m3ua(f):
     tag = pop_u16(g)
     if tag == 0x210: break
     length = pop_u16(g)
-    g.read(length-4)
+    payload = g.read(length-4) # not parsing different tags, just copying over
+    tags.append([tag, length, payload]) # if you want to parse them check RFC 4666/3.2
 
   if tag != 0x210: return
 
@@ -247,14 +249,17 @@ def decode_m3ua(f):
 
   sccp = decode_sccp(data)
 
-  return (M3UA(version, klass, type), ss7, sccp)
+  return (M3UA(version, klass, type, tags), ss7, sccp)
 
 
 def encode_m3ua(m3ua, ss7, sccp):
   f = BytesIO()
 
-  f.write(pack('!BBBBIHH', m3ua.version, 0, m3ua.klass, m3ua.type, len(sccp)+16+8,
-    0x210, len(sccp)+16))
+  f.write(pack('!BBBBI', m3ua.version, 0, m3ua.klass, m3ua.type, len(sccp)+16+8)) #M3UA header
+  for tag in m3ua.tags:
+    f.write(pack('!HH', tag[0], tag[1]))
+    f.write(tag[2])
+  f.write(pack('!HH', 0x210, len(sccp)+16)) #SS7 protocol data
   f.write(pack('!IIBBBB', ss7.opc, ss7.dpc, ss7.si, ss7.ni, ss7.mp, ss7.sls))
   f.write(sccp)
 
